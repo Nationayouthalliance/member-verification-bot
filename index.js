@@ -37,14 +37,26 @@ app.post("/verify", async (req, res) => {
     const { userId } = req.body;
 
     const guild = await client.guilds.fetch(GUILD_ID);
-    const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
 
-    if (!logChannel) {
-      console.log("Log channel not found");
+    let logChannel = null;
+
+    try {
+      logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
+    } catch {
+      console.log("Log channel fetch failed");
     }
 
+    const sendLog = async (msg) => {
+      if (logChannel && logChannel.isTextBased()) {
+        await logChannel.send({
+          content: msg,
+          allowedMentions: { users: [userId] },
+        });
+      }
+    };
+
     if (!userId) {
-      if (logChannel) await logChannel.send("❌ No userId received");
+      await sendLog("❌ No userId received");
       return res.json({ error: "No userId" });
     }
 
@@ -54,9 +66,7 @@ app.post("/verify", async (req, res) => {
       const diff = now - lastVerify.get(userId);
 
       if (diff < 10000) {
-        if (logChannel)
-          await logChannel.send("🚫 Cooldown spam: " + userId);
-
+        await sendLog(`🚫 Cooldown spam: <@${userId}> (${userId})`);
         return res.json({ error: "Cooldown active" });
       }
     }
@@ -68,23 +78,18 @@ app.post("/verify", async (req, res) => {
     try {
       member = await guild.members.fetch(userId);
     } catch {
-      if (logChannel)
-        await logChannel.send("❌ Not in server: " + userId);
-
+      await sendLog(`❌ Not in server: ${userId}`);
       return res.json({ error: "User not in server" });
     }
 
     if (member.roles.cache.has(ROLE_ID)) {
-      if (logChannel)
-        await logChannel.send("⚠ Already verified: " + userId);
-
+      await sendLog(`⚠ Already verified: <@${userId}> (${userId})`);
       return res.json({ message: "Already verified" });
     }
 
     await member.roles.add(ROLE_ID);
 
-    if (logChannel)
-      await logChannel.send("✅ Verified: " + userId);
+    await sendLog(`✅ Verified: <@${userId}> (${userId})`);
 
     return res.json({ success: true });
 
@@ -93,8 +98,9 @@ app.post("/verify", async (req, res) => {
 
     try {
       const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
-      if (logChannel) {
-        await logChannel.send("🔥 Error: " + err.message);
+
+      if (logChannel && logChannel.isTextBased()) {
+        await logChannel.send(`🔥 Error: ${err.message}`);
       }
     } catch {}
 
