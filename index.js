@@ -27,7 +27,9 @@ client.once("ready", () => {
 client.login(TOKEN);
 
 const lastVerify = new Map();
-
+app.get("/", (req, res) => {
+  res.send("Bot is running!");
+});
 app.post("/verify", async (req, res) => {
   try {
     if (!botReady) {
